@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "surface": "home-and-commerce",
+  "mode": "persuade",
+  "world": "showroom-digital-moderno-de-muebleria-con-logo-real",
+  "tokens": {
+    "colors": {
+      "ink": "#191a18",
+      "ivory": "#f4f1eb",
+      "warm": "#e7e1d7",
+      "gold": "#c9a63d",
+      "goldDeep": "#7c5d16"
+    },
+    "fonts": {
+      "display": "Cormorant Garamond SemiBold Italic",
+      "sans": "DM Sans",
+      "mono": "DM Mono"
+    }
+  },
+  "signature": "logo real transparente con pincelada dorada, home orientada por proyecto, catálogo con estados de stock y carrito lateral listo para checkout",
+  "source": "Facebook público de El Faraón Decoración y Muebles"
+}
