@@ -13,11 +13,40 @@ import { CheckoutService } from './services/checkout.service';
 import { ContactPayload, ContactService } from './services/contact.service';
 import { ApiRequestError } from './services/api-client';
 import { DeliveryMethod, ShippingAddress, ShippingService } from './services/shipping.service';
+import { APP_CONFIG } from './config/app-config';
 
-type View = 'home' | 'catalog';
+type View = 'home' | 'catalog' | 'orders' | 'success';
 type ProjectFilter = 'Todos' | 'Nueva casa' | 'Equipar varias casas' | 'Renovar un espacio';
 type AdminSection = 'overview' | 'catalog' | 'sales' | 'production';
 type ProductionFilter = 'Todas' | 'En curso' | 'Riesgo' | 'Listas';
+type OrderStatus = 'paid' | 'preparing' | 'shipped' | 'out_for_delivery' | 'delivered';
+
+interface StoredOrderItem {
+  productId: string;
+  name: string;
+  image: string;
+  quantity: number;
+  unitAmountMxn: number;
+}
+
+interface StoredOrder {
+  id: number | string;
+  displayId: string;
+  paymentIntentId: string;
+  createdAt: string;
+  status: OrderStatus;
+  shippingStatus: OrderStatus;
+  amountMxn: number;
+  shippingAmountMxn: number;
+  deliveryMethod: DeliveryMethod;
+  shippingZone: string;
+  address: ShippingAddress;
+  items: StoredOrderItem[];
+  accountEmail: string | null;
+  carrier: string;
+  trackingNumber: string;
+  trackingUrl: string;
+}
 
 interface InventoryRow {
   material: string;
@@ -53,7 +82,6 @@ interface ProductionOrder {
 }
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51QJQQvGVJUCHEoSsTs6mp65TG8BQ1rmOo7YXp3TcAyC481KX0gzVZDb4nJYXNqvLFkuNKAwSkkPhCCo3l0I1B5vv00nVs3I2Yh';
 
 @Component({
   selector: 'faraon-root',
@@ -82,15 +110,34 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly stripeMessage = signal('');
   readonly stripeCardMode = signal('Esperando datos de tarjeta');
   readonly stripeCardFunding = signal<'unknown' | 'credit' | 'debit' | 'prepaid'>('unknown');
+  readonly successNotice = signal('');
+  readonly lastOrder = signal<StoredOrder | null>(null);
+  readonly orders = signal<StoredOrder[]>(this.readStoredOrders());
+  readonly authUser = signal<{ name: string; email: string; role?: string } | null>(this.readAuthUser());
+  readonly selectedOrderId = signal<number | string | null>(null);
   readonly creditMonths = signal<3 | 6 | null>(null);
   readonly search = signal('');
   readonly activeCategory = signal<'Todas' | ProductCategory>('Todas');
   readonly activeProject = signal<ProjectFilter>('Todos');
   readonly projectFilters: ProjectFilter[] = ['Todos', 'Nueva casa', 'Equipar varias casas', 'Renovar un espacio'];
   readonly paymentMode = signal<'cash' | 'credit'>('cash');
+  readonly demoMode = APP_CONFIG.demoMode;
+  readonly demoCard = {
+    name: 'Cliente de preview',
+    number: '4242 4242 4242 4242',
+    expiry: '12/34',
+    cvc: '123'
+  };
   readonly deliveryMethod = signal<DeliveryMethod>('local');
   private readonly shippingAddressVersion = signal(0);
   readonly shippingAddress: ShippingAddress = this.createReactiveShippingAddress({ name: '', phone: '', line1: '', city: 'Torreón', state: 'Coahuila', postalCode: '' });
+  readonly trackingSteps = [
+    { status: 'paid' as OrderStatus, label: 'Pago confirmado', description: 'Stripe confirmó tu pago.' },
+    { status: 'preparing' as OrderStatus, label: 'Preparando pedido', description: 'Estamos coordinando materiales y salida.' },
+    { status: 'shipped' as OrderStatus, label: 'Enviado', description: 'Tu pedido salió del taller.' },
+    { status: 'out_for_delivery' as OrderStatus, label: 'En reparto', description: 'Va en camino a tu dirección.' },
+    { status: 'delivered' as OrderStatus, label: 'Entregado', description: 'Pedido recibido.' }
+  ];
   readonly authOpen = signal(false);
   readonly authMode = signal<'login' | 'forgot'>('login');
   readonly authEmail = signal('');
@@ -212,8 +259,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.shippingAddressVersion();
     return this.shipping.quote(this.shippingAddress, this.deliveryMethod(), this.checkoutSubtotal(), this.cart.items());
   });
+  readonly visibleOrders = computed(() => {
+    if (this.view() === 'success') return this.lastOrder() ? [this.lastOrder() as StoredOrder] : this.orders().slice(0, 1);
+    return this.orders();
+  });
   readonly checkoutTotal = computed(() => this.checkoutSubtotal() + this.shippingQuote().amountMxn);
-  readonly canPay = computed(() => !this.stripeLoading() && !this.stripePaying() && (this.paymentMode() === 'cash' || (this.creditMonths() !== null && this.stripeCardFunding() === 'credit')));
+  readonly canPay = computed(() => {
+    if (this.stripeLoading() || this.stripePaying() || !this.cart.items().length) return false;
+    if (this.paymentMode() === 'credit' && this.creditMonths() === null) return false;
+    if (this.demoMode) return this.demoCard.number.replace(/\s/g, '').length === 16;
+    return this.paymentMode() === 'cash' || this.stripeCardFunding() === 'credit';
+  });
 
   ngOnInit(): void {
     this.syncView();
@@ -254,14 +310,22 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   syncView = (): void => {
-    this.view.set(window.location.hash === '#catalogo' ? 'catalog' : 'home');
+    const hash = window.location.hash;
+    this.view.set(hash === '#catalogo' ? 'catalog' : hash === '#pedidos' ? 'orders' : hash === '#pedido-exitoso' ? 'success' : 'home');
     this.menuOpen.set(false);
+    if (this.view() === 'orders') this.selectedOrderId.set(this.orders()[0]?.id ?? null);
+    if (this.view() === 'success') {
+      const recentOrder = this.lastOrder() ?? this.orders()[0] ?? null;
+      this.lastOrder.set(recentOrder);
+      if (recentOrder && !this.successNotice()) this.successNotice.set('Pago confirmado. Tu pedido está en preparación.');
+    }
     window.scrollTo(0, 0);
     window.setTimeout(() => window.scrollTo(0, 0), 0);
   };
 
   goTo(view: View): void {
-    window.history.replaceState(null, '', view === 'catalog' ? '#catalogo' : '#inicio');
+    const hash = view === 'catalog' ? '#catalogo' : view === 'orders' ? '#pedidos' : view === 'success' ? '#pedido-exitoso' : '#inicio';
+    window.history.replaceState(null, '', hash);
     this.syncView();
   }
 
@@ -388,6 +452,79 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.checkoutExpanded.set(false);
   }
 
+  private readStoredOrders(): StoredOrder[] {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('faraon-orders');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed as StoredOrder[] : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private readAuthUser(): { name: string; email: string; role?: string } | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('faraon-auth-user');
+      return raw ? JSON.parse(raw) as { name: string; email: string; role?: string } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private persistOrders(orders: StoredOrder[]): void {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('faraon-orders', JSON.stringify(orders));
+  }
+
+  private linkGuestOrdersToAccount(email: string): void {
+    const linked = this.orders().map((order) => order.accountEmail ? order : { ...order, accountEmail: email });
+    this.orders.set(linked);
+    this.persistOrders(linked);
+  }
+
+  private createLocalOrder(stripePaymentIntentId: string): StoredOrder {
+    const quote = this.shippingQuote();
+    const createdAt = new Date().toISOString();
+    const localId = `local-${Date.now()}`;
+    return {
+      id: localId,
+      displayId: `F-${String(Date.now()).slice(-6)}`,
+      paymentIntentId: stripePaymentIntentId,
+      createdAt,
+      status: 'preparing',
+      shippingStatus: 'preparing',
+      amountMxn: this.checkoutTotal(),
+      shippingAmountMxn: quote.amountMxn,
+      deliveryMethod: this.deliveryMethod(),
+      shippingZone: quote.zone,
+      address: { ...this.shippingAddress },
+      items: this.cart.items().map(({ product, quantity }) => ({ productId: product.id, name: product.name, image: product.image, quantity, unitAmountMxn: this.unitPrice(product) })),
+      accountEmail: this.authUser()?.email ?? null,
+      carrier: '',
+      trackingNumber: '',
+      trackingUrl: ''
+    };
+  }
+
+  private saveOrder(order: StoredOrder): void {
+    const next = [order, ...this.orders().filter((existing) => existing.id !== order.id && existing.displayId !== order.displayId)];
+    this.orders.set(next);
+    this.persistOrders(next);
+  }
+
+  orderStatusLabel(status: OrderStatus): string {
+    return this.trackingSteps.find((step) => step.status === status)?.label ?? 'En seguimiento';
+  }
+
+  orderProgress(order: StoredOrder): number {
+    return Math.max(0, this.trackingSteps.findIndex((step) => step.status === order.status));
+  }
+
+  trackingPosition(order: StoredOrder): number {
+    return 18 + (this.orderProgress(order) * 20);
+  }
+
   toggleCheckout(): void {
     this.checkoutExpanded.update((expanded) => !expanded);
     this.checkoutMessage.set('');
@@ -437,8 +574,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     window.setTimeout(() => this.initializeStripePayment(), 0);
   }
 
-  closeStripePayment(): void {
-    if (this.stripePaying()) return;
+  closeStripePayment(force = false): void {
+    if (this.stripePaying() && !force) return;
     this.stripePaymentElementInstance?.destroy();
     this.stripePaymentElementInstance = null;
     this.stripeElements = null;
@@ -449,11 +586,19 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private async initializeStripePayment(): Promise<void> {
     try {
+      if (this.demoMode) {
+        await new Promise((resolve) => window.setTimeout(resolve, 420));
+        if (!this.stripeOpen()) return;
+        this.stripeCardFunding.set('credit');
+        this.stripeCardMode.set('Tarjeta demo lista para la presentación');
+        this.stripeLoading.set(false);
+        return;
+      }
       const quote = this.shippingQuote();
       const result = await this.checkout.createPaymentIntent(this.cart.items(), this.paymentMode(), { method: this.deliveryMethod(), zone: quote.zone, amountMxn: quote.amountMxn, address: this.shippingAddress }, this.creditMonths());
       if (!result.clientSecret) throw new Error('Stripe no devolvió el client secret del pago.');
       this.stripeClientSecret = result.clientSecret;
-      this.stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY);
+      this.stripe = await loadStripe(APP_CONFIG.stripePublishableKey);
       if (!this.stripe || !this.stripePaymentElementHost) throw new Error('No se pudo cargar el formulario seguro de Stripe.');
       this.stripeElements = this.stripe.elements({
         clientSecret: this.stripeClientSecret,
@@ -505,8 +650,51 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private async completeSuccessfulPayment(paymentIntentId: string): Promise<void> {
+    const localOrder = this.createLocalOrder(paymentIntentId);
+    let savedOrder = localOrder;
+    try {
+      const quote = this.shippingQuote();
+      const order = await this.checkout.createOrder({
+        stripePaymentIntentId: paymentIntentId,
+        paymentMode: this.paymentMode(),
+        installmentMonths: this.creditMonths(),
+        amountMxn: this.checkoutTotal(),
+        shipping: { method: this.deliveryMethod(), zone: quote.zone, amountMxn: quote.amountMxn, address: this.shippingAddress },
+        items: this.cart.items().map(({ product, quantity }) => ({ productId: product.id, quantity }))
+      });
+      if (order.orderId) savedOrder = { ...localOrder, id: order.orderId, displayId: `F-${order.orderId}` };
+    } catch {
+      // La preview conserva el pedido local aunque la API aún no esté conectada.
+    }
+    this.saveOrder(savedOrder);
+    this.lastOrder.set(savedOrder);
+    this.selectedOrderId.set(savedOrder.id);
+    this.successNotice.set(`${this.demoMode ? 'Preview completada' : 'Pago confirmado'}. Tu pedido ${savedOrder.displayId} quedó guardado y está en preparación.`);
+    this.cart.clear();
+    this.closeStripePayment(true);
+    this.goTo('success');
+  }
+
   async confirmStripePayment(event: Event): Promise<void> {
     event.preventDefault();
+    if (this.demoMode) {
+      if (!this.canPay()) {
+        this.stripeMessage.set('Completa los datos de la tarjeta demo para continuar.');
+        return;
+      }
+      this.stripePaying.set(true);
+      this.stripeMessage.set('');
+      try {
+        await new Promise((resolve) => window.setTimeout(resolve, 760));
+        await this.completeSuccessfulPayment(`demo_pi_${Date.now()}`);
+      } catch (error) {
+        this.stripeMessage.set(this.errorMessage(error));
+      } finally {
+        this.stripePaying.set(false);
+      }
+      return;
+    }
     if (!this.stripe || !this.stripeElements || this.stripePaying()) return;
     if (this.paymentMode() === 'credit' && this.creditMonths() === null) {
       this.stripeMessage.set('Elige 3 o 6 meses antes de pagar.');
@@ -528,6 +716,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       });
       if (result.error) throw new Error(result.error.message || 'Stripe no pudo confirmar el pago.');
       if (result.paymentIntent?.status === 'succeeded' || result.paymentIntent?.status === 'processing') {
+        const localOrder = this.createLocalOrder(result.paymentIntent.id);
+        let savedOrder = localOrder;
         try {
           const quote = this.shippingQuote();
           const order = await this.checkout.createOrder({
@@ -538,11 +728,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
             shipping: { method: this.deliveryMethod(), zone: quote.zone, amountMxn: quote.amountMxn, address: this.shippingAddress },
             items: this.cart.items().map(({ product, quantity }) => ({ productId: product.id, quantity }))
           });
-          this.stripeMessage.set(order.orderId ? `Pago recibido. Pedido F-${order.orderId} creado y en preparación.` : 'Pago recibido. Estamos preparando tu pedido.');
+          if (order.orderId) savedOrder = { ...localOrder, id: order.orderId, displayId: `F-${order.orderId}` };
         } catch {
-          this.stripeMessage.set('Pago recibido. Estamos preparando tu pedido.');
+          // El pedido local conserva el comprobante y el seguimiento aunque la API no esté disponible.
         }
+        this.saveOrder(savedOrder);
+        this.lastOrder.set(savedOrder);
+        this.selectedOrderId.set(savedOrder.id);
+        this.successNotice.set(`Pago confirmado. Tu pedido ${savedOrder.displayId} quedó guardado y está en preparación.`);
         this.cart.clear();
+        this.closeStripePayment(true);
+        this.goTo('success');
       } else {
         this.stripeMessage.set('Stripe recibió la solicitud y está verificando el pago.');
       }
@@ -589,7 +785,15 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
         ? await this.auth.login(this.authEmail(), this.authPassword())
         : await this.auth.forgotPassword(this.authEmail());
       this.authMessage.set(result.message);
-      if (result.token) localStorage.setItem('faraon-auth-token', result.token);
+      if (result.token) {
+        localStorage.setItem('faraon-auth-token', result.token);
+        const user = this.decodeAuthUser(result.token, result.role);
+        if (user) {
+          this.authUser.set(user);
+          localStorage.setItem('faraon-auth-user', JSON.stringify(user));
+          if (user.email) this.linkGuestOrdersToAccount(user.email);
+        }
+      }
       if (result.role === 'admin') {
         this.adminUser.set(result.name ?? 'Administrador');
         this.adminSection.set('overview');
@@ -605,6 +809,19 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   formatPrice(value: number): string {
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
+  }
+
+  private decodeAuthUser(token: string, role?: string): { name: string; email: string; role?: string } | null {
+    try {
+      const encoded = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const binary = atob(encoded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const claims = JSON.parse(new TextDecoder().decode(bytes)) as { name?: string; email?: string; role?: string };
+      if (!claims.email && claims.role !== 'admin') return null;
+      return { name: claims.name ?? 'Cliente', email: claims.email ?? '', role: role ?? claims.role };
+    } catch {
+      return null;
+    }
   }
 
   private errorMessage(error: unknown): string {
