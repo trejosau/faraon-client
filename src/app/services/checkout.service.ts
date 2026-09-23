@@ -48,9 +48,13 @@ export class CheckoutService {
   }
 
   async createOrder(payload: Record<string, unknown>): Promise<OrderResult> {
+    const token = localStorage.getItem('faraon-auth-token');
     return requestJson<OrderResult>('/api/orders', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
       body: JSON.stringify(payload)
     }, 'orders.create');
   }
