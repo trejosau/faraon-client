@@ -11,10 +11,11 @@ export class CartService {
   readonly subtotal = computed(() => this.cartItems().reduce((total, item) => total + item.product.price * item.quantity, 0));
 
   add(product: Product): void {
+    if (product.stock <= 0) return;
     const next = this.cartItems().map((item) => ({ ...item }));
     const existing = next.find((item) => item.product.id === product.id);
     if (existing) {
-      existing.quantity = Math.min(existing.quantity + 1, Math.max(product.stock, 1));
+      existing.quantity = Math.min(existing.quantity + 1, product.stock);
     } else {
       next.push({ product, quantity: 1 });
     }
@@ -28,8 +29,9 @@ export class CartService {
   update(productId: string, quantity: number): void {
     const next = this.cartItems().map((item) => {
       if (item.product.id !== productId) return item;
-      return { ...item, quantity: Math.max(1, Math.min(quantity, Math.max(item.product.stock, 1))) };
-    });
+      if (item.product.stock <= 0) return null;
+      return { ...item, quantity: Math.max(1, Math.min(quantity, item.product.stock)) };
+    }).filter((item): item is CartItem => item !== null);
     this.save(next);
   }
 
