@@ -98,6 +98,7 @@
     <nav class="main-nav" aria-label="Navegación principal">
       <a href="#inicio" [class.active]="view() === 'home'" (click)="goTo('home')">Inicio</a>
       <a href="#catalogo" [class.active]="view() === 'catalog'" (click)="goTo('catalog')">Catálogo</a>
+      <a href="#pedidos" [class.active]="view() === 'orders' || view() === 'success'" (click)="goTo('orders')">Pedidos</a>
       <a href="#contacto" (click)="goToContact()">Contacto</a>
     </nav>
     <button class="auth-trigger" type="button" (click)="openAuth()">Entrar</button>
@@ -176,6 +177,7 @@
   </main>
 
   <ng-template #catalogView>
+    <ng-container *ngIf="view() === 'catalog'">
       <section class="catalog-hero"><div class="catalog-hero-inner"><h1>Catálogo</h1><p>Filtra por categoría, busca por nombre y revisa qué piezas están disponibles.</p></div></section>
     <section class="catalog-content" aria-labelledby="catalog-heading">
       <div class="catalog-toolbar"><div><p class="section-kicker">Muebles y decoración</p><h2 id="catalog-heading">Encuentra tu pieza</h2></div><label class="search-box"><span aria-hidden="true">⌕</span><input [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Buscar sala, madera..." aria-label="Buscar en catálogo" /></label></div>
@@ -189,7 +191,28 @@
       <ng-template #emptyCatalog><div class="empty-state"><strong>No encontramos esa pieza.</strong><p>Prueba con “sala”, “comedor” o limpia los filtros.</p><button class="button button-dark" type="button" (click)="search.set(''); activeCategory.set('Todas')">Limpiar filtros</button></div></ng-template>
     </section>
     <section class="catalog-contact"><div><p class="section-kicker">¿No encuentras lo que buscas?</p><h2>Hablemos de<br /><em>tu espacio.</em></h2></div><div><p>Escríbenos para confirmar medidas, materiales o disponibilidad de una pieza.</p><a class="button button-dark" href="https://www.facebook.com/messages/t/61577157207205" target="_blank" rel="noreferrer">Escribir a tienda <span aria-hidden="true">↗</span></a></div></section>
+    </ng-container>
   </ng-template>
+
+  <section class="orders-page" *ngIf="view() === 'orders' || view() === 'success'" aria-labelledby="orders-title">
+    <div class="orders-page-head">
+      <div><p class="section-kicker">Seguimiento personal</p><h1 id="orders-title">{{ view() === 'success' ? 'Pedido confirmado.' : 'Mis pedidos.' }}</h1><p>{{ view() === 'success' ? 'Tu pago quedó confirmado. Conserva esta página para consultar el avance aunque no tengas una cuenta iniciada.' : 'Consulta el estado, la ruta y la fecha estimada de tus pedidos desde este navegador.' }}</p></div>
+      <button class="button button-dark" type="button" (click)="goTo('catalog')">Seguir comprando <span aria-hidden="true">→</span></button>
+    </div>
+
+    <div class="order-success-alert" *ngIf="view() === 'success' && lastOrder()" role="status"><span class="success-alert-mark" aria-hidden="true">✓</span><div><strong>{{ successNotice() }}</strong><p>El modal de pago se cerró correctamente. Puedes revisar la ruta en cualquier momento desde <button type="button" (click)="goTo('orders')">Pedidos</button>.</p></div></div>
+
+    <div class="orders-list" *ngIf="visibleOrders().length; else emptyOrders">
+      <article class="order-card" *ngFor="let order of visibleOrders()" [class.order-card-latest]="order.id === selectedOrderId()">
+        <div class="order-card-head"><div><span class="section-kicker">{{ order.displayId }} · {{ order.accountEmail ? 'Vinculado a tu cuenta' : 'Guardado en este navegador' }}</span><h2>{{ orderStatusLabel(order.status) }}</h2><p>{{ order.createdAt | date:'d MMMM y, HH:mm' }} · {{ order.address.city }}</p></div><strong>{{ formatPrice(order.amountMxn) }}</strong></div>
+        <div class="order-card-body">
+          <div class="order-items"><div class="order-item" *ngFor="let item of order.items"><img [src]="item.image" [alt]="item.name" /><div><strong>{{ item.quantity }} × {{ item.name }}</strong><span>{{ formatPrice(item.unitAmountMxn) }} c/u</span></div></div><p class="order-delivery-copy"><b>Entrega {{ order.deliveryMethod === 'local' ? 'local' : 'nacional' }}</b><br />{{ order.address.line1 }}, {{ order.address.city }}, {{ order.address.state }} · C.P. {{ order.address.postalCode }}</p></div>
+          <div class="order-tracking"><div class="tracking-map" role="img" [attr.aria-label]="'Ruta estimada del pedido ' + order.displayId + ' hacia ' + order.address.city"><span class="map-road map-road-one"></span><span class="map-road map-road-two"></span><span class="map-road map-road-three"></span><span class="map-pin map-pin-origin">Taller</span><span class="map-pin map-pin-current" [style.left.%]="trackingPosition(order)">Ahora</span><span class="map-pin map-pin-destination">{{ order.address.city }}</span><span class="tracking-map-caption">Ruta estimada · {{ orderStatusLabel(order.status) }}</span></div><div class="tracking-summary"><div><span>Estado actual</span><strong>{{ orderStatusLabel(order.status) }}</strong></div><div><span>Entrega estimada</span><strong>{{ order.status === 'delivered' ? 'Entregado' : order.deliveryMethod === 'local' ? '1–3 días hábiles' : '5–8 días hábiles' }}</strong></div></div><ol class="tracking-steps"><li *ngFor="let step of trackingSteps; let i = index" [class.done]="orderProgress(order) >= i" [class.current]="orderProgress(order) === i"><span>{{ orderProgress(order) >= i ? '✓' : (i + 1) }}</span><div><strong>{{ step.label }}</strong><small>{{ step.description }}</small></div></li></ol><a class="tracking-link" *ngIf="order.trackingUrl" [href]="order.trackingUrl" target="_blank" rel="noreferrer">Rastrear con {{ order.carrier || 'el transportista' }} →</a></div>
+        </div>
+      </article>
+    </div>
+    <ng-template #emptyOrders><div class="orders-empty"><span class="section-kicker">Todavía no hay pedidos</span><h2>Tu próxima pieza aparecerá aquí.</h2><p>Cuando completes un pago, guardaremos el pedido en este navegador para que puedas consultarlo sin iniciar sesión.</p><button class="button button-gold" type="button" (click)="goTo('catalog')">Explorar catálogo <span aria-hidden="true">→</span></button></div></ng-template>
+  </section>
 
   <footer class="site-footer"><a href="#inicio" (click)="goTo('home')"><img src="assets/el-faraon-logo-light.png" alt="El Faraón Decoración y Muebles" /></a><span>Una casa con más carácter.</span><a href="#inicio" (click)="goTo('home')">Volver arriba ↑</a></footer>
 
