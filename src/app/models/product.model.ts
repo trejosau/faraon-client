@@ -13,6 +13,8 @@ export interface Product {
   stockStatus: StockStatus;
   delivery: string;
   dimensions: string;
+  weightKg?: number;
+  volumeM3?: number;
   featured?: boolean;
   projectTags: string[];
 }
