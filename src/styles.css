@@ -1,0 +1,11 @@
+:root { --ink: #191a18; --ink-soft: #4a4b45; --ivory: #f4f1eb; --warm: #e7e1d7; --gold: #c9a63d; --gold-deep: #7c5d16; --line: rgba(25,26,24,.18); --display: 'Cormorant Garamond', Georgia, serif; --sans: 'DM Sans', Arial, sans-serif; --mono: 'DM Mono', monospace; }
+* { box-sizing: border-box; }
+html { background: var(--ink); scroll-behavior: smooth; }
+body { background: var(--ivory); color: var(--ink); font-family: var(--sans); line-height: 1.5; margin: 0; }
+body:has(.scrim) { overflow: hidden; }
+button, input { color: inherit; font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+::selection { background: var(--gold); color: var(--ink); }

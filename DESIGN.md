@@ -2,7 +2,7 @@
 
 ## World
 
-Showroom digital moderno y cálido: el landing se siente como una mueblería que ayuda a elegir. La experiencia inicia con un ambiente real, continúa por habitaciones y termina en piezas accionables y contacto directo. La composición tiene ritmo de tienda editorial, pero la navegación, los filtros y las llamadas a la acción son inmediatos.
+Showroom digital moderno y cálido con una tienda real detrás: la home ayuda a imaginar y el catálogo ayuda a decidir. La entrada organiza la compra por escena (nueva casa, proyecto múltiple o renovación) y el inventario hace visible la siguiente acción: agregar, consultar o pedir asesoría. La composición tiene ritmo editorial, mientras que stock, categorías, filtros y carrito son directos.
 
 ## Palette
 
@@ -14,7 +14,7 @@ Showroom digital moderno y cálido: el landing se siente como una mueblería que
 
 ## Type
 
-- Bodoni Moda: voz editorial de alto contraste, alineada con el lettering del logo y aplicada a titulares de ambiente.
+- Cormorant Garamond SemiBold: voz editorial de alto contraste y cursiva con suficiente cuerpo para que los titulares no se pierdan.
 - DM Sans: lectura, navegación y acciones.
 - DM Mono: metadatos, etiquetas y sistema de orientación.
 
@@ -25,9 +25,10 @@ La primera vista enfrenta una frase grande con una fotografía real de un comedo
 ## Interaction
 
 - Revelados suaves al entrar en viewport.
-- Navegación por habitaciones para orientar la compra.
-- Filtros de selección sin recarga.
-- Ficha modal para ampliar cada pieza.
+- Navegación por rutas de proyecto para orientar la compra.
+- Filtros por categoría, proyecto y búsqueda sin recarga.
+- Ficha modal para ampliar cada pieza y carrito lateral persistente.
+- Checkout encapsulado como mock listo para sustituirse por una sesión de Stripe.
 - Todas las interacciones respetan la preferencia de movimiento reducido.
 
 ## Content boundary

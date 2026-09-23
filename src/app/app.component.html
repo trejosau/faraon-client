@@ -1,0 +1,264 @@
+<div class="app-shell" id="inicio">
+  <section class="admin-shell" *ngIf="adminOpen()" aria-label="Panel administrativo">
+    <aside class="admin-sidebar">
+      <div class="admin-brand">
+        <img src="assets/el-faraon-logo-light.png" alt="El Faraón" />
+        <span>Operación interna</span>
+      </div>
+      <nav class="admin-nav" aria-label="Navegación administrativa">
+        <button *ngFor="let item of adminNavigation" type="button" [class.active]="adminSection() === item.id" (click)="setAdminSection(item.id)">
+          <span class="admin-nav-mark" aria-hidden="true"></span>
+          <span><strong>{{ item.label }}</strong><small>{{ item.description }}</small></span>
+        </button>
+      </nav>
+      <div class="admin-sidebar-foot"><span>Sesión activa</span><strong>{{ adminUser() }}</strong><button type="button" (click)="logoutAdmin()">Cerrar sesión</button></div>
+    </aside>
+
+    <div class="admin-main">
+      <header class="admin-topbar"><div><span class="admin-overline">El Faraón / control</span><h1>{{ adminSectionTitle() }}</h1></div><span class="admin-date">Datos de muestra · hoy</span></header>
+
+      <div class="admin-content" [ngSwitch]="adminSection()">
+        <ng-container *ngSwitchCase="'overview'">
+          <div class="admin-stats"><article *ngFor="let stat of adminStats" class="admin-stat" [class]="'admin-stat-' + stat.accent"><span>{{ stat.label }}</span><strong>{{ stat.value }}</strong><small>{{ stat.note }}</small></article></div>
+          <div class="admin-overview-grid">
+            <section class="admin-panel sales-panel"><div class="admin-panel-heading"><div><span class="admin-overline">Ritmo comercial</span><h2>Ventas de los últimos meses</h2></div><span class="admin-panel-value">$184.5k <small>MXN</small></span></div><div class="sales-chart" aria-label="Gráfica de ventas de enero a junio"><div *ngFor="let bar of salesBars" class="sales-bar-column"><span class="sales-bar-value">{{ bar.value }}k</span><div class="sales-bar" [style.height.%]="bar.value"></div><small>{{ bar.label }}</small></div></div></section>
+            <section class="admin-panel pulse-panel"><div class="admin-panel-heading"><div><span class="admin-overline">Estado actual</span><h2>La tienda en movimiento</h2></div></div><div class="pulse-list"><div><span class="pulse-dot gold"></span><span>Pedidos por confirmar</span><strong>04</strong></div><div><span class="pulse-dot ink"></span><span>En producción</span><strong>08</strong></div><div><span class="pulse-dot soft"></span><span>Materiales bajo mínimo</span><strong>02</strong></div></div><p class="admin-note">El inventario conecta cada entrada de taller con el producto que finalmente aparece en el catálogo.</p></section>
+          </div>
+          <section class="admin-panel orders-panel"><div class="admin-panel-heading"><div><span class="admin-overline">Último movimiento</span><h2>Pedidos recientes</h2></div><button type="button" class="admin-text-button" (click)="setAdminSection('sales')">Ver ventas <span>→</span></button></div><div class="admin-table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Pieza</th><th>Total</th><th>Estado</th></tr></thead><tbody><tr *ngFor="let order of recentOrders"><td><strong>{{ order.id }}</strong></td><td>{{ order.customer }}</td><td>{{ order.item }}</td><td>{{ order.total }}</td><td><span class="status-tag">{{ order.status }}</span></td></tr></tbody></table></div></section>
+        </ng-container>
+
+        <ng-container *ngSwitchCase="'catalog'">
+          <section class="admin-panel admin-page-panel"><div class="admin-panel-heading"><div><span class="admin-overline">Salida comercial</span><h2>Piezas publicadas</h2></div><span class="admin-panel-value">{{ products.length }} <small>items</small></span></div><div class="admin-product-list"><article *ngFor="let product of products" class="admin-product-row"><img src="assets/catalog-comedor-160.jpg" [src]="product.image" [alt]="product.name" /><div><span>{{ product.category }}</span><h3>{{ product.name }}</h3><small>{{ product.delivery }} · {{ product.dimensions }}</small></div><strong>{{ formatPrice(product.price) }}</strong><span class="status-tag" [class.status-muted]="product.stock === 0">{{ product.stockStatus }}</span></article></div></section>
+        </ng-container>
+
+        <ng-container *ngSwitchCase="'sales'">
+          <section class="admin-panel admin-page-panel"><div class="admin-panel-heading"><div><span class="admin-overline">Seguimiento</span><h2>Ventas</h2></div><button type="button" class="admin-filter">Últimos 30 días <span>⌄</span></button></div><div class="admin-table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Pieza</th><th>Total</th><th>Estado</th></tr></thead><tbody><tr *ngFor="let order of recentOrders"><td><strong>{{ order.id }}</strong></td><td>{{ order.customer }}</td><td>{{ order.item }}</td><td>{{ order.total }}</td><td><span class="status-tag">{{ order.status }}</span></td></tr></tbody></table></div><div class="admin-sales-foot"><span>Los pagos de la tienda se confirman en Stripe.</span><button type="button" class="admin-text-button" (click)="setAdminSection('catalog')">Revisar catálogo <span>→</span></button></div></section>
+        </ng-container>
+
+        <ng-container *ngSwitchCase="'production'">
+          <section class="production-intro">
+            <div><span class="admin-overline">Del material a la publicación</span><h2>Una vista clara del taller,<br /><em>de menos a más detalle.</em></h2></div>
+            <p>Registra entradas, valida materiales, mueve órdenes por etapa y libera sólo las piezas con ficha completa.</p>
+          </section>
+
+          <section class="admin-panel production-pipeline-panel">
+            <div class="admin-panel-heading"><div><span class="admin-overline">Pipeline de producción</span><h2>El recorrido de cada pieza</h2></div><span class="admin-panel-value">07 <small>etapas</small></span></div>
+            <div class="production-pipeline" role="list" aria-label="Etapas de producción">
+              <button *ngFor="let stage of productionPipeline; let i = index" type="button" class="production-node" [class]="'production-node-' + stage.tone" [class.active]="productionStageFilter() === stage.id" (click)="setProductionStage(stage.id)" role="listitem">
+                <span class="production-node-index">{{ stage.eyebrow }}</span><strong>{{ stage.title }}</strong><small>{{ stage.count }}</small><span class="production-node-line" *ngIf="i < productionPipeline.length - 1" aria-hidden="true"></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="admin-panel production-orders-panel">
+            <div class="admin-panel-heading production-orders-heading"><div><span class="admin-overline">Órdenes activas</span><h2>Qué está pasando hoy</h2></div><div class="production-toolbar"><label class="production-search"><span aria-hidden="true">⌕</span><input [ngModel]="productionSearch()" (ngModelChange)="productionSearch.set($event)" placeholder="Buscar orden o diseño" aria-label="Buscar orden o diseño" /></label><button *ngFor="let filter of productionFilters" type="button" class="production-filter" [class.active]="productionFilter() === filter" (click)="setProductionFilter(filter)">{{ filter }}</button></div></div>
+            <div class="production-order-grid" *ngIf="filteredProductionOrders().length; else emptyProduction">
+              <article *ngFor="let order of filteredProductionOrders()" class="production-order" [class.is-risk]="order.state === 'Riesgo'" [class.is-ready]="order.state === 'Listo'" (click)="openProductionOrder(order)">
+                <div class="production-order-media"><img src="assets/catalog-comedor-160.jpg" [src]="order.image" [alt]="order.product" /><span class="production-order-id">{{ order.id }}</span><span class="status-tag" [class.status-warning]="order.state === 'Riesgo'" [class.status-ready]="order.state === 'Listo'">{{ order.state }}</span></div>
+                <div class="production-order-copy"><div class="production-order-topline"><span>{{ order.priority }} prioridad</span><span>{{ order.due }}</span></div><h3>{{ order.product }}</h3><p>{{ order.quantity }} unidades · {{ order.stage }}</p><div class="production-progress"><span><i [style.width.%]="order.progress"></i></span><strong>{{ order.progress }}%</strong></div><div class="production-order-foot"><small>{{ order.responsible }}</small><button type="button" class="admin-text-button" (click)="advanceProductionOrder(order.id, $event)">{{ order.state === 'Listo' ? 'Revisar' : 'Avanzar etapa' }} <span>→</span></button></div></div>
+              </article>
+            </div>
+            <ng-template #emptyProduction><div class="empty-production"><strong>No hay órdenes en esta vista.</strong><p>Prueba otro estado, etapa o búsqueda.</p></div></ng-template>
+          </section>
+
+          <div class="production-detail-grid">
+            <section class="admin-panel inventory-panel">
+              <div class="admin-panel-heading"><div><span class="admin-overline">Existencias y movimientos</span><h2>Inventario que alimenta el pipeline</h2></div><button type="button" class="admin-text-button" (click)="showMaterialEntry.set(!showMaterialEntry())">{{ showMaterialEntry() ? 'Cerrar' : 'Registrar entrada' }} <span>{{ showMaterialEntry() ? '×' : '+' }}</span></button></div>
+              <form class="material-entry" *ngIf="showMaterialEntry()" (ngSubmit)="registerMaterialEntry()"><label><span>Material</span><input type="text" name="material" [(ngModel)]="materialEntry.material" placeholder="Ej. Madera de encino" required /></label><label><span>Cantidad</span><input type="text" name="quantity" [(ngModel)]="materialEntry.quantity" placeholder="Ej. 20" required /></label><label><span>Unidad</span><select name="unit" [(ngModel)]="materialEntry.unit"><option>unidades</option><option>tablones</option><option>metros</option><option>litros</option><option>piezas</option></select></label><label><span>Proveedor</span><input type="text" name="supplier" [(ngModel)]="materialEntry.supplier" placeholder="Opcional" /></label><button class="button button-dark" type="submit">Guardar entrada <span>→</span></button></form>
+              <p class="entry-message" *ngIf="materialEntryMessage()">{{ materialEntryMessage() }}</p>
+              <div class="admin-table-wrap"><table><thead><tr><th>Registro</th><th>Tipo</th><th>Cantidad</th><th>Ubicación</th><th>Estado</th></tr></thead><tbody><tr *ngFor="let row of inventoryRows()"><td><strong>{{ row.material }}</strong></td><td>{{ row.type }}</td><td>{{ row.quantity }}</td><td>{{ row.location }}</td><td><span class="status-tag" [class]="'status-' + row.tone">{{ row.status }}</span></td></tr></tbody></table></div>
+            </section>
+            <section class="admin-panel production-alerts-panel"><div class="admin-panel-heading"><div><span class="admin-overline">Atención del taller</span><h2>Alertas que requieren acción</h2></div><span class="alert-count">03</span></div><div class="production-alert-list"><article *ngFor="let alert of productionAlerts" [class]="'production-alert production-alert-' + alert.tone"><span class="alert-mark" aria-hidden="true"></span><div><strong>{{ alert.title }}</strong><small>{{ alert.detail }}</small></div><span aria-hidden="true">→</span></article></div></section>
+          </div>
+        </ng-container>
+      </div>
+      <div class="admin-scrim" *ngIf="selectedProductionOrder()" (click)="closeProductionOrder()"></div>
+      <aside class="production-detail-drawer" *ngIf="selectedProductionOrder() as order" role="dialog" aria-modal="true" aria-label="Detalle de orden de producción">
+        <button type="button" class="icon-button production-detail-close" (click)="closeProductionOrder()" aria-label="Cerrar detalle">×</button>
+        <div class="production-detail-image"><img src="assets/catalog-comedor-160.jpg" [src]="order.image" [alt]="order.product" /></div>
+        <div class="production-detail-copy"><span class="admin-overline">{{ order.id }} · {{ order.state }}</span><h2>{{ order.product }}</h2><p>{{ order.note }}</p><div class="production-detail-stats"><span><b>Etapa actual</b>{{ order.stage }}</span><span><b>Responsable</b>{{ order.responsible }}</span><span><b>Entrega estimada</b>{{ order.due }}</span><span><b>Avance</b>{{ order.progress }}%</span></div><div class="production-detail-steps"><strong>Historial del workflow</strong><div *ngFor="let stage of productionPipeline; let i = index" [class.done]="i <= order.stageIndex" [class.current]="i === order.stageIndex"><span>{{ i + 1 }}</span><div><b>{{ stage.title }}</b><small>{{ i < order.stageIndex ? 'Completado' : i === order.stageIndex ? 'En esta etapa' : 'Pendiente' }}</small></div></div></div><button class="button button-gold full-button" type="button" (click)="advanceProductionOrder(order.id)">{{ order.state === 'Listo' ? 'Volver a revisar' : 'Marcar siguiente etapa' }} <span>→</span></button></div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="storefront-shell" [class.is-hidden]="adminOpen()">
+  <div class="topbar">
+    <span>EL FARAÓN / CIUDAD LERDO</span>
+    <span class="topbar-note">Piezas para vivir mejor · asesoría para proyectos</span>
+    <a href="https://www.facebook.com/messages/t/61577157207205" target="_blank" rel="noreferrer">Escríbenos <span aria-hidden="true">↗</span></a>
+  </div>
+
+  <header class="site-header" [class.menu-is-open]="menuOpen()">
+    <a class="brand" href="#inicio" (click)="goTo('home')" aria-label="El Faraón, ir al inicio">
+      <img src="assets/el-faraon-logo-light.png" alt="El Faraón Decoración y Muebles" />
+    </a>
+    <button class="menu-toggle" type="button" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-label="Abrir navegación">
+      <span></span><span></span>
+    </button>
+    <nav class="main-nav" aria-label="Navegación principal">
+      <a href="#inicio" [class.active]="view() === 'home'" (click)="goTo('home')">Inicio</a>
+      <a href="#catalogo" [class.active]="view() === 'catalog'" (click)="goTo('catalog')">Catálogo</a>
+      <a href="#pedidos" [class.active]="view() === 'orders' || view() === 'success'" (click)="goTo('orders')">Pedidos</a>
+      <a href="#contacto" (click)="goToContact()">Contacto</a>
+    </nav>
+    <button class="auth-trigger" type="button" (click)="openAuth()">Entrar</button>
+    <button class="cart-trigger" type="button" (click)="openCart()" aria-label="Abrir carrito">
+      <span>Carrito</span><strong>{{ cart.count() | number:'2.0-0' }}</strong>
+    </button>
+  </header>
+
+  <main *ngIf="view() === 'home'; else catalogView">
+    <section class="hero">
+      <div class="hero-copy reveal-in">
+        <p class="section-kicker">Tu casa, bien elegida</p>
+        <h1>Una casa que<br /><em>se siente tuya.</em></h1>
+        <p class="hero-lede">Muebles y decoración con carácter para empezar de cero, renovar un espacio o equipar varios proyectos con la misma sensibilidad.</p>
+        <div class="hero-actions">
+          <button class="button button-gold" type="button" (click)="goTo('catalog')">Explorar catálogo <span aria-hidden="true">↗</span></button>
+          <a class="text-link" href="#proyectos">Cuéntanos qué necesitas <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+      <div class="hero-visual reveal-in reveal-delay">
+        <div class="hero-image-wrap" data-parallax><img src="assets/catalog-comedor-180.jpg" alt="Comedor de madera para seis personas" /></div>
+        <div class="hero-image-caption"><span>01</span><span>Comedor / vida diaria</span></div>
+        <div class="hero-stamp"><span>El Faraón</span><small>muebles + decoración</small></div>
+      </div>
+    </section>
+
+    <section class="project-paths" id="proyectos">
+      <div class="section-heading">
+        <div><p class="section-kicker">Estamos para ayudarte</p><h2>El Faraón te ayuda<br /><em>según lo que necesitas.</em></h2></div>
+        <p>Cuéntanos qué quieres resolver y te llevamos directo a las piezas y opciones que tienen sentido para ti.</p>
+      </div>
+      <div class="project-grid">
+        <button class="project-card project-card-dark" type="button" data-reveal (click)="setProject('Nueva casa')">
+          <span class="project-index">01</span><span class="project-arrow">↗</span>
+          <h3>Acabas de estrenar casa<br /><em>y quieres equiparla.</em></h3><p>Te ayudamos a elegir las piezas que necesitas para empezar a vivirla.</p><span class="project-link">Ver opciones para tu casa</span>
+        </button>
+        <button class="project-card project-card-gold" type="button" data-reveal (click)="setProject('Equipar varias casas')">
+          <span class="project-index">02</span><span class="project-arrow">↗</span>
+          <h3>Tienes departamentos<br /><em>o un hotel.</em></h3><p>Te ayudamos a equipar varios espacios con una propuesta clara y coordinada.</p><span class="project-link">Cuéntanos tu proyecto</span>
+        </button>
+        <button class="project-card project-card-image" type="button" data-reveal (click)="setProject('Renovar un espacio')">
+          <img src="assets/catalog-bufetero-main.jpg" alt="Bufetero de madera oscura" /><span class="project-image-shade"></span>
+          <span class="project-index">03</span><span class="project-arrow">↗</span>
+          <h3>Buscas un mueble nuevo<br /><em>para tu espacio.</em></h3><p>Encuentra una pieza que resuelva lo que hoy le falta a tu casa.</p><span class="project-link">Buscar mi mueble</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="featured-section" aria-labelledby="featured-title">
+      <div class="section-heading section-heading-light"><div><p class="section-kicker">Selección actual</p><h2 id="featured-title">Piezas que hacen<br /><em>la diferencia.</em></h2></div><button class="text-link light-link" type="button" (click)="goTo('catalog')">Ver todo el catálogo <span aria-hidden="true">→</span></button></div>
+      <div class="featured-grid">
+        <article class="featured-product" data-reveal *ngFor="let product of products.slice(0, 4); let i = index" (click)="openProduct(product)">
+          <button class="product-image" data-parallax type="button" (click)="openProduct(product)" [attr.aria-label]="'Ver ' + product.name"><img src="assets/catalog-comedor-160.jpg" [src]="product.image" [alt]="product.name" loading="lazy" /><span class="product-image-index">0{{ i + 1 }}</span><span class="product-quick">Ver pieza <span aria-hidden="true">↗</span></span></button>
+          <div class="product-meta"><div><span>{{ product.category }}</span><h3>{{ product.name }}</h3></div><strong>{{ formatPrice(product.price) }}</strong></div>
+          <p class="product-stock"><span [class.low-stock]="product.stockStatus === 'Últimas piezas'" [class.on-order]="product.stockStatus === 'Sobre pedido'"></span>{{ product.stockStatus }} · {{ product.delivery }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="brand-story">
+      <div class="story-image" data-reveal data-parallax><img src="assets/catalog-sala-modular-recliner.jpg" alt="Detalle de una sala modular" loading="lazy" /><span>Desde Ciudad Lerdo<br />para tu casa</span></div>
+      <div class="story-copy" data-reveal><p class="section-kicker">Nuestro criterio</p><h2>No armamos espacios.<br /><em>Los hacemos tuyos.</em></h2><p>En El Faraón reunimos muebles y detalles para construir una casa con ritmo propio: una pieza fuerte, una textura, una luz distinta.</p><div class="story-points"><span><b>01</b>Curaduría con carácter</span><span><b>02</b>Disponibilidad transparente</span><span><b>03</b>Asesoría cercana</span></div><a class="text-link" href="https://www.facebook.com/messages/t/61577157207205" target="_blank" rel="noreferrer">Hablar con alguien de tienda <span aria-hidden="true">→</span></a></div>
+    </section>
+
+      <section class="contact-section" id="contacto">
+        <div class="contact-copy" data-reveal><p class="section-kicker">Contacto</p><h2>Cuéntanos<br /><em>qué necesitas.</em></h2><p>Déjanos tus datos y una idea breve de lo que estás buscando. Te respondemos para orientarte con piezas y opciones reales.</p><a class="contact-phone" href="tel:+528717794497">871 779 4497 <span>llamar a tienda →</span></a></div>
+        <form class="contact-form" data-reveal (ngSubmit)="submitContact($event)" aria-label="Formulario de contacto">
+          <label><span>Nombre</span><input type="text" name="name" [(ngModel)]="contactForm.name" autocomplete="name" required /></label>
+          <label><span>Correo</span><input type="email" name="email" [(ngModel)]="contactForm.email" autocomplete="email" required /></label>
+          <label><span>Número de teléfono</span><input type="tel" name="phone" [(ngModel)]="contactForm.phone" autocomplete="tel" required /></label>
+          <label><span>Cuéntanos tu idea</span><textarea name="message" [(ngModel)]="contactForm.message" rows="4" placeholder="Ej. necesito amueblar mi sala..." required></textarea></label>
+          <button class="button button-gold full-button" type="submit" [disabled]="contactSending()">{{ contactSending() ? 'Enviando...' : 'Enviar mensaje' }} <span aria-hidden="true">→</span></button>
+          <p class="contact-message" *ngIf="contactMessage()">{{ contactMessage() }}</p>
+        </form>
+      </section>
+      <section class="location-section" aria-labelledby="location-heading">
+        <div class="location-copy"><p class="section-kicker">Dónde estamos</p><h2 id="location-heading">Una ruta clara<br /><em>hasta tu espacio.</em></h2><p>Explora la zona de atención de El Faraón y consulta las rutas de entrega desde Ciudad Lerdo.</p><span class="location-note">Ubicación exacta del showroom por confirmar</span></div>
+        <div class="location-map-shell"><div #locationMap class="location-map" role="application" aria-label="Mapa de ubicación de El Faraón en Ciudad Lerdo"></div><div class="location-map-meta"><span>Ciudad Lerdo</span><span>Comarca Lagunera</span></div></div>
+      </section>
+  </main>
+
+  <ng-template #catalogView>
+    <ng-container *ngIf="view() === 'catalog'">
+      <section class="catalog-hero"><div class="catalog-hero-inner"><h1>Catálogo</h1><p>Filtra por categoría, busca por nombre y revisa qué piezas están disponibles.</p></div></section>
+    <section class="catalog-content" aria-labelledby="catalog-heading">
+      <div class="catalog-toolbar"><div><p class="section-kicker">Muebles y decoración</p><h2 id="catalog-heading">Encuentra tu pieza</h2></div><label class="search-box"><span aria-hidden="true">⌕</span><input [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Buscar sala, madera..." aria-label="Buscar en catálogo" /></label></div>
+      <div class="catalog-filters" role="group" aria-label="Filtros de catálogo"><button *ngFor="let category of categories()" type="button" [class.active]="activeCategory() === category.label" (click)="setCategory(category.label)">{{ category.label }} <span>{{ category.count }}</span></button></div>
+      <div class="catalog-grid" *ngIf="filteredProducts().length; else emptyCatalog">
+        <article class="catalog-card" data-reveal *ngFor="let product of filteredProducts(); let i = index" (click)="openProduct(product)">
+          <button class="catalog-card-image" data-parallax type="button" (click)="openProduct(product)" [attr.aria-label]="'Ver detalle de ' + product.name"><img src="assets/catalog-comedor-160.jpg" [src]="product.image" [alt]="product.name" loading="lazy" /><span class="stock-badge" [class.stock-low]="product.stockStatus === 'Últimas piezas'" [class.stock-order]="product.stockStatus === 'Sobre pedido'"><i></i>{{ product.stockStatus }}</span><span class="card-number">0{{ i + 1 }}</span></button>
+          <div class="catalog-card-body"><div class="catalog-card-topline"><span>{{ product.category }}</span><span>{{ product.delivery }}</span></div><h3>{{ product.name }}</h3><p>{{ product.description }}</p><div class="catalog-card-bottom"><div><s *ngIf="product.previousPrice">{{ formatPrice(product.previousPrice) }}</s><strong>{{ formatPrice(product.price) }}</strong></div><button class="add-button" type="button" (click)="addToCart(product, $event)" [disabled]="product.stock === 0">{{ product.stock === 0 ? 'Sobre pedido' : 'Agregar' }} <span aria-hidden="true">+</span></button></div></div>
+        </article>
+      </div>
+      <ng-template #emptyCatalog><div class="empty-state"><strong>No encontramos esa pieza.</strong><p>Prueba con “sala”, “comedor” o limpia los filtros.</p><button class="button button-dark" type="button" (click)="search.set(''); activeCategory.set('Todas')">Limpiar filtros</button></div></ng-template>
+    </section>
+    <section class="catalog-contact"><div><p class="section-kicker">¿No encuentras lo que buscas?</p><h2>Hablemos de<br /><em>tu espacio.</em></h2></div><div><p>Escríbenos para confirmar medidas, materiales o disponibilidad de una pieza.</p><a class="button button-dark" href="https://www.facebook.com/messages/t/61577157207205" target="_blank" rel="noreferrer">Escribir a tienda <span aria-hidden="true">↗</span></a></div></section>
+    </ng-container>
+  </ng-template>
+
+  <section class="orders-page" *ngIf="view() === 'orders' || view() === 'success'" aria-labelledby="orders-title">
+    <div class="orders-page-head">
+      <div><p class="section-kicker">Seguimiento personal</p><h1 id="orders-title">{{ view() === 'success' ? 'Pedido confirmado.' : 'Mis pedidos.' }}</h1><p>{{ view() === 'success' ? 'Tu pago quedó confirmado. Conserva esta página para consultar el avance aunque no tengas una cuenta iniciada.' : 'Consulta el estado, la ruta y la fecha estimada de tus pedidos desde este navegador.' }}</p></div>
+      <button class="button button-dark" type="button" (click)="goTo('catalog')">Seguir comprando <span aria-hidden="true">→</span></button>
+    </div>
+
+    <div class="order-success-alert" *ngIf="view() === 'success' && lastOrder()" role="status"><span class="success-alert-mark" aria-hidden="true">✓</span><div><strong>{{ successNotice() }}</strong><p>El modal de pago se cerró correctamente. Puedes revisar la ruta en cualquier momento desde <button type="button" (click)="goTo('orders')">Pedidos</button>.</p></div></div>
+
+    <div class="orders-list" *ngIf="visibleOrders().length; else emptyOrders">
+      <article class="order-card" *ngFor="let order of visibleOrders()" [class.order-card-latest]="order.id === selectedOrderId()">
+        <div class="order-card-head"><div><span class="section-kicker">{{ order.displayId }} · {{ order.accountEmail ? 'Vinculado a tu cuenta' : 'Guardado en este navegador' }}</span><h2>{{ orderStatusLabel(order.status) }}</h2><p>{{ order.createdAt | date:'d MMMM y, HH:mm' }} · {{ order.address.city }}</p></div><strong>{{ formatPrice(order.amountMxn) }}</strong></div>
+        <div class="order-card-body">
+          <div class="order-items"><div class="order-item" *ngFor="let item of order.items"><img [src]="item.image" [alt]="item.name" /><div><strong>{{ item.quantity }} × {{ item.name }}</strong><span>{{ formatPrice(item.unitAmountMxn) }} c/u</span></div></div><p class="order-delivery-copy"><b>Entrega {{ order.deliveryMethod === 'local' ? 'local' : 'nacional' }}</b><br />{{ order.address.line1 }}, {{ order.address.city }}, {{ order.address.state }} · C.P. {{ order.address.postalCode }}</p></div>
+          <div class="order-tracking"><div class="tracking-map" role="img" [attr.aria-label]="'Ruta estimada del pedido ' + order.displayId + ' hacia ' + order.address.city"><span class="map-road map-road-one"></span><span class="map-road map-road-two"></span><span class="map-road map-road-three"></span><span class="map-pin map-pin-origin">Taller</span><span class="map-pin map-pin-current" [style.left.%]="trackingPosition(order)">Ahora</span><span class="map-pin map-pin-destination">{{ order.address.city }}</span><span class="tracking-map-caption">Ruta estimada · {{ orderStatusLabel(order.status) }}</span></div><div class="tracking-summary"><div><span>Estado actual</span><strong>{{ orderStatusLabel(order.status) }}</strong></div><div><span>Entrega estimada</span><strong>{{ order.status === 'delivered' ? 'Entregado' : order.deliveryMethod === 'local' ? '1–3 días hábiles' : '5–8 días hábiles' }}</strong></div></div><ol class="tracking-steps"><li *ngFor="let step of trackingSteps; let i = index" [class.done]="orderProgress(order) >= i" [class.current]="orderProgress(order) === i"><span>{{ orderProgress(order) >= i ? '✓' : (i + 1) }}</span><div><strong>{{ step.label }}</strong><small>{{ step.description }}</small></div></li></ol><a class="tracking-link" *ngIf="order.trackingUrl" [href]="order.trackingUrl" target="_blank" rel="noreferrer">Rastrear con {{ order.carrier || 'el transportista' }} →</a></div>
+        </div>
+      </article>
+    </div>
+    <ng-template #emptyOrders><div class="orders-empty"><span class="section-kicker">Todavía no hay pedidos</span><h2>Tu próxima pieza aparecerá aquí.</h2><p>Cuando completes un pago, guardaremos el pedido en este navegador para que puedas consultarlo sin iniciar sesión.</p><button class="button button-gold" type="button" (click)="goTo('catalog')">Explorar catálogo <span aria-hidden="true">→</span></button></div></ng-template>
+  </section>
+
+  <footer class="site-footer"><a href="#inicio" (click)="goTo('home')"><img src="assets/el-faraon-logo-light.png" alt="El Faraón Decoración y Muebles" /></a><span>Una casa con más carácter.</span><a href="#inicio" (click)="goTo('home')">Volver arriba ↑</a></footer>
+
+  <div class="scrim" *ngIf="cartOpen() || selectedProduct() || authOpen() || stripeOpen()" (click)="closeCart(); closeProduct(); closeAuth(); closeStripePayment()"></div>
+  <aside class="cart-drawer" [class.open]="cartOpen()" [class.payment-open]="stripeOpen()" aria-label="Carrito de compra" [attr.aria-hidden]="!cartOpen()">
+    <div class="drawer-header"><div><p class="section-kicker">Tu selección</p><h2>Carrito <span>{{ cart.count() | number:'2.0-0' }}</span></h2></div><button class="icon-button" type="button" (click)="closeCart()" aria-label="Cerrar carrito">×</button></div>
+    <div class="drawer-body" *ngIf="cart.items().length; else emptyCart"><article class="cart-line" *ngFor="let item of cart.items()"><img src="assets/catalog-comedor-160.jpg" [src]="item.product.image" [alt]="item.product.name" /><div><span>{{ item.product.category }}</span><h3>{{ item.product.name }}</h3><strong>{{ formatPrice(lineTotal(item)) }}</strong><div class="quantity"><button type="button" (click)="decrement(item.product.id, item.quantity)" aria-label="Reducir cantidad">−</button><span>{{ item.quantity }}</span><button type="button" (click)="increment(item.product.id, item.quantity)" aria-label="Aumentar cantidad">+</button><button class="remove" type="button" (click)="cart.remove(item.product.id)">Quitar</button></div></div></article><button class="clear-cart" type="button" (click)="cart.clear()">Vaciar carrito</button></div>
+    <ng-template #emptyCart><div class="empty-cart"><span class="empty-cart-mark">＋</span><h3>Tu selección está vacía.</h3><p>Agrega una pieza y aquí podrás revisar cantidades antes de avanzar.</p><button class="button button-dark" type="button" (click)="closeCart(); goTo('catalog')">Explorar catálogo</button></div></ng-template>
+    <div class="drawer-footer" *ngIf="cart.items().length">
+      <div class="checkout-summary-bar">
+        <div><span class="checkout-label">Checkout</span><strong>{{ formatPrice(checkoutTotal()) }}</strong></div>
+        <button class="checkout-toggle" type="button" (click)="toggleCheckout()" [attr.aria-expanded]="checkoutExpanded()" aria-controls="checkout-details">
+          <span>{{ checkoutExpanded() ? 'Minimizar' : 'Pagar' }}</span><span aria-hidden="true">{{ checkoutExpanded() ? '↑' : '↓' }}</span>
+        </button>
+      </div>
+      <div id="checkout-details" class="checkout-details" [class.expanded]="checkoutExpanded()" [attr.aria-hidden]="!checkoutExpanded()" [attr.inert]="checkoutExpanded() ? null : ''">
+        <div class="checkout-details-inner">
+          <div class="shipping-checkout"><span class="checkout-label">Entrega</span><div class="delivery-choice"><button type="button" [class.active]="deliveryMethod() === 'local'" (click)="setDeliveryMethod('local')">Comarca Lagunera<small>Tarifa local</small></button><button type="button" [class.active]="deliveryMethod() === 'national'" (click)="setDeliveryMethod('national')">Envío nacional<small>Estimado por zona</small></button></div><div class="shipping-fields"><label><span>Nombre</span><input name="shippingName" [ngModel]="shippingAddress.name" (ngModelChange)="shippingAddress.name = $event" autocomplete="name" placeholder="Quién recibe" /></label><label><span>Teléfono</span><input name="shippingPhone" [ngModel]="shippingAddress.phone" (ngModelChange)="shippingAddress.phone = $event" autocomplete="tel" placeholder="10 dígitos" /></label><label class="shipping-wide"><span>Dirección</span><input name="shippingLine1" [ngModel]="shippingAddress.line1" (ngModelChange)="shippingAddress.line1 = $event" autocomplete="street-address" placeholder="Calle y número" /></label><label><span>Ciudad</span><input name="shippingCity" [ngModel]="shippingAddress.city" (ngModelChange)="shippingAddress.city = $event" /></label><label><span>Estado</span><input name="shippingState" [ngModel]="shippingAddress.state" (ngModelChange)="shippingAddress.state = $event" /></label><label><span>C.P.</span><input name="shippingPostalCode" [ngModel]="shippingAddress.postalCode" (ngModelChange)="shippingAddress.postalCode = $event" inputmode="numeric" maxlength="5" placeholder="27000" /></label></div><div class="shipping-quote" [class.shipping-invalid]="!shippingQuote().ready"><span>{{ shippingQuote().label }}</span><strong>{{ shippingQuote().ready ? formatPrice(shippingQuote().amountMxn) : 'Pendiente' }}</strong><small>{{ shippingQuote().detail }}</small></div></div><div class="payment-choice"><span>Forma de pago</span><button type="button" [class.active]="paymentMode() === 'cash'" (click)="setPaymentMode('cash')">Contado <small>15% menos</small></button><button type="button" [class.active]="paymentMode() === 'credit'" (click)="setPaymentMode('credit')">Crédito <small>precio regular</small></button></div><div class="drawer-credit-choice" *ngIf="paymentMode() === 'credit'"><span>Plazo a meses</span><div class="installment-choice"><button type="button" [class.active]="creditMonths() === 3" (click)="setCreditMonths(3)">3 meses</button><button type="button" [class.active]="creditMonths() === 6" (click)="setCreditMonths(6)">6 meses</button></div><small>Solo podrás continuar cuando elijas un plazo.</small></div><div class="total-line"><span>Total</span><strong>{{ formatPrice(checkoutTotal()) }}</strong></div><p>El costo de envío se calcula antes de pagar y queda guardado en tu pedido.</p><button class="button button-gold full-button" type="button" (click)="checkoutCart()" [disabled]="!shippingQuote().ready || (paymentMode() === 'credit' && creditMonths() === null)">Continuar con checkout <span aria-hidden="true">→</span></button><small class="checkout-note">Pago seguro con Stripe</small><div class="checkout-message" *ngIf="checkoutMessage()">{{ checkoutMessage() }}</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="auth-modal" *ngIf="authOpen()" role="dialog" aria-modal="true" aria-label="Acceso a clientes">
+    <button class="modal-close icon-button" type="button" (click)="closeAuth()" aria-label="Cerrar acceso">×</button>
+    <div class="auth-copy"><p class="section-kicker">Área de clientes</p><h2>{{ authMode() === 'login' ? 'Entra a tu cuenta.' : 'Recupera tu acceso.' }}</h2><p>{{ authMode() === 'login' ? 'Guarda tus datos y revisa tus pedidos desde un solo lugar.' : 'Te enviaremos un enlace para crear una nueva contraseña.' }}</p></div>
+    <form class="auth-form" (ngSubmit)="submitAuth($event)">
+      <label><span>Correo</span><input type="email" name="authEmail" [ngModel]="authEmail()" (ngModelChange)="authEmail.set($event)" autocomplete="email" required /></label>
+      <label *ngIf="authMode() === 'login'"><span>Contraseña</span><input type="password" name="authPassword" [ngModel]="authPassword()" (ngModelChange)="authPassword.set($event)" autocomplete="current-password" required /></label>
+      <button class="button button-dark full-button" type="submit" [disabled]="authSending()">{{ authSending() ? 'Procesando...' : authMode() === 'login' ? 'Entrar' : 'Enviar enlace' }} <span aria-hidden="true">→</span></button>
+      <p class="auth-message" *ngIf="authMessage()">{{ authMessage() }}</p>
+      <button class="auth-switch" type="button" (click)="authMode.set(authMode() === 'login' ? 'forgot' : 'login'); authMessage.set('')">{{ authMode() === 'login' ? 'Olvidé mi contraseña' : 'Volver a entrar' }}</button>
+    </form>
+  </div>
+
+  <div class="product-modal" *ngIf="selectedProduct() as product" role="dialog" aria-modal="true" aria-label="Detalle del producto"><button class="modal-close icon-button" type="button" (click)="closeProduct()" aria-label="Cerrar detalle">×</button><div class="modal-image"><img src="assets/catalog-comedor-160.jpg" [src]="product.image" [alt]="product.name" /></div><div class="modal-copy"><p class="section-kicker">{{ product.category }} · {{ product.stockStatus }}</p><h2>{{ product.name }}</h2><p>{{ product.description }}</p><div class="modal-specs"><span><b>Medidas</b>{{ product.dimensions }}</span><span><b>Entrega</b>{{ product.delivery }}</span></div><div class="modal-price"><strong>{{ formatPrice(product.price) }}</strong><s *ngIf="product.previousPrice">{{ formatPrice(product.previousPrice) }}</s></div><button class="button button-dark full-button" type="button" (click)="addToCart(product); closeProduct()" [disabled]="product.stock === 0">{{ product.stock === 0 ? 'Consultar disponibilidad' : 'Agregar al carrito' }} <span aria-hidden="true">→</span></button><a class="modal-help" href="https://www.facebook.com/messages/t/61577157207205" target="_blank" rel="noreferrer">¿Quieres asesoría para elegir? Escríbenos →</a></div></div>
+   <div class="stripe-payment-modal" *ngIf="stripeOpen()" [class.demo-payment-modal]="demoMode" role="dialog" aria-modal="true" aria-label="Pago seguro con Stripe">
+     <div class="demo-preview-form" *ngIf="demoMode"><div class="demo-payment-badge"><span>Vista previa para cliente</span><strong>No se realiza ningun cobro</strong></div><div class="demo-card-grid"><label class="demo-field demo-field-wide"><span>Nombre en la tarjeta</span><input name="demoCardName" [(ngModel)]="demoCard.name" autocomplete="off" /></label><label class="demo-field demo-field-wide"><span>Numero de tarjeta</span><input name="demoCardNumber" [(ngModel)]="demoCard.number" inputmode="numeric" maxlength="19" autocomplete="off" /></label><label class="demo-field"><span>Vencimiento</span><input name="demoCardExpiry" [(ngModel)]="demoCard.expiry" inputmode="numeric" maxlength="5" autocomplete="off" /></label><label class="demo-field"><span>CVC</span><input name="demoCardCvc" [(ngModel)]="demoCard.cvc" inputmode="numeric" maxlength="4" autocomplete="off" /></label></div><small class="demo-payment-hint">Datos precargados para mostrar el flujo completo de compra.</small></div>
+    <div class="stripe-payment-header"><div><p class="section-kicker">Pago seguro</p><h2>Termina tu compra.</h2><p>El formulario se queda aquí. Stripe protege tus datos y solo redirige si tu banco pide una verificación.</p></div><button class="modal-close icon-button" type="button" (click)="closeStripePayment()" aria-label="Cerrar pago">×</button></div>
+    <div class="stripe-payment-summary"><span>{{ paymentMode() === 'credit' ? 'Crédito · precio regular' : 'Contado · 15% menos' }}</span><strong>{{ formatPrice(checkoutTotal()) }}</strong></div>
+    <div class="stripe-installments-note" [class.credit-mode]="paymentMode() === 'credit'"><span class="stripe-note-mark" aria-hidden="true"></span><div><strong>{{ paymentMode() === 'credit' ? 'Elige tu plazo' : 'Pago en una sola exhibición' }}</strong><p>{{ paymentMode() === 'credit' ? 'Selecciona 3 o 6 meses. Stripe confirmará que tu tarjeta sea de crédito y tenga ese plan disponible.' : 'Puedes pagar con tarjeta de débito o crédito sin cambiar el precio contado.' }}</p><div class="installment-choice" *ngIf="paymentMode() === 'credit'"><button type="button" [class.active]="creditMonths() === 3" (click)="setCreditMonths(3)">3 meses</button><button type="button" [class.active]="creditMonths() === 6" (click)="setCreditMonths(6)">6 meses</button></div></div></div>
+    <form class="stripe-payment-body stripe-payment-form" (ngSubmit)="confirmStripePayment($event)"><div class="stripe-payment-element" #stripePaymentElement></div><p class="stripe-card-status" [class.stripe-card-invalid]="paymentMode() === 'credit' && stripeCardFunding() !== 'credit'">{{ stripeCardMode() }}</p><div class="stripe-payment-loading" *ngIf="stripeLoading()"><span></span>Preparando el formulario seguro de Stripe...</div><p class="stripe-payment-error" *ngIf="stripeMessage()">{{ stripeMessage() }}</p><div class="stripe-submit"><span><strong>{{ formatPrice(checkoutTotal()) }}</strong><small> MXN</small></span><button class="button button-gold" type="submit" [disabled]="!canPay()">{{ stripePaying() ? 'Confirmando...' : 'Pagar de forma segura' }} <span aria-hidden="true">→</span></button></div><small class="stripe-powered">Stripe · tus datos de tarjeta no pasan por El Faraón</small></form>
+  </div>
+</div>
+</div>
