@@ -72,6 +72,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly products = CATALOG;
   readonly view = signal<View>('home');
   readonly cartOpen = signal(false);
+  readonly checkoutExpanded = signal(false);
   readonly menuOpen = signal(false);
   readonly selectedProduct = signal<Product | null>(null);
   readonly checkoutMessage = signal('');
@@ -88,7 +89,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly projectFilters: ProjectFilter[] = ['Todos', 'Nueva casa', 'Equipar varias casas', 'Renovar un espacio'];
   readonly paymentMode = signal<'cash' | 'credit'>('cash');
   readonly deliveryMethod = signal<DeliveryMethod>('local');
-  readonly shippingAddress: ShippingAddress = { name: '', phone: '', line1: '', city: 'Torreón', state: 'Coahuila', postalCode: '' };
+  private readonly shippingAddressVersion = signal(0);
+  readonly shippingAddress: ShippingAddress = this.createReactiveShippingAddress({ name: '', phone: '', line1: '', city: 'Torreón', state: 'Coahuila', postalCode: '' });
   readonly authOpen = signal(false);
   readonly authMode = signal<'login' | 'forgot'>('login');
   readonly authEmail = signal('');
@@ -106,6 +108,16 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   private stripeElements: StripeElements | null = null;
   private stripePaymentElementInstance: StripePaymentElement | null = null;
   private stripeClientSecret = '';
+
+  private createReactiveShippingAddress(initial: ShippingAddress): ShippingAddress {
+    return new Proxy(initial, {
+      set: (target, property, value) => {
+        const updated = Reflect.set(target, property, value);
+        this.shippingAddressVersion.update((version) => version + 1);
+        return updated;
+      }
+    });
+  }
 
   readonly adminNavigation: Array<{ id: AdminSection; label: string; description: string }> = [
     { id: 'overview', label: 'Resumen', description: 'Lo que está pasando hoy' },
@@ -196,7 +208,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   });
 
   readonly checkoutSubtotal = computed(() => this.cart.items().reduce((total, item) => total + this.unitPrice(item.product) * item.quantity, 0));
-  readonly shippingQuote = computed(() => this.shipping.quote(this.shippingAddress, this.deliveryMethod(), this.checkoutSubtotal(), this.cart.items()));
+  readonly shippingQuote = computed(() => {
+    this.shippingAddressVersion();
+    return this.shipping.quote(this.shippingAddress, this.deliveryMethod(), this.checkoutSubtotal(), this.cart.items());
+  });
   readonly checkoutTotal = computed(() => this.checkoutSubtotal() + this.shippingQuote().amountMxn);
   readonly canPay = computed(() => !this.stripeLoading() && !this.stripePaying() && (this.paymentMode() === 'cash' || (this.creditMonths() !== null && this.stripeCardFunding() === 'credit')));
 
@@ -359,6 +374,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     event?.stopPropagation();
     this.cart.add(product);
     this.checkoutMessage.set('');
+    this.checkoutExpanded.set(false);
     this.cartOpen.set(true);
   }
 
@@ -369,6 +385,12 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   closeCart(): void {
     this.cartOpen.set(false);
+    this.checkoutExpanded.set(false);
+  }
+
+  toggleCheckout(): void {
+    this.checkoutExpanded.update((expanded) => !expanded);
+    this.checkoutMessage.set('');
   }
 
   increment(productId: string, quantity: number): void {
