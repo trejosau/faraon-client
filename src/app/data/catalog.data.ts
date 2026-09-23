@@ -1,0 +1,91 @@
+import { Product } from '../models/product.model';
+
+export const CATALOG: Product[] = [
+  {
+    id: 'comedor-160',
+    name: 'Comedor para 4 personas',
+    category: 'Comedor',
+    description: 'Una mesa protagonista para las comidas de todos los días.',
+    image: 'assets/catalog-order-01.png',
+    price: 11800,
+    previousPrice: 13900,
+    stock: 2,
+    stockStatus: 'Últimas piezas',
+    delivery: 'Entrega inmediata',
+    dimensions: '1.00 × 1.60 m',
+    featured: true,
+    projectTags: ['Nueva casa', 'Comedor']
+  },
+  {
+    id: 'sala-modular',
+    name: 'Sala modular',
+    category: 'Sala',
+    description: 'Volumen generoso y comodidad para reunir a todos.',
+    image: 'assets/catalog-order-02.png',
+    price: 16900,
+    previousPrice: 19800,
+    stock: 1,
+    stockStatus: 'Últimas piezas',
+    delivery: 'Entrega inmediata',
+    dimensions: '2.90 × 2.20 m',
+    featured: true,
+    projectTags: ['Nueva casa', 'Sala']
+  },
+  {
+    id: 'bufetero',
+    name: 'Bufetero de madera oscura',
+    category: 'Decoración',
+    description: 'Almacenamiento con presencia para comedor o recibidor.',
+    image: 'assets/catalog-order-03.png',
+    price: 4300,
+    previousPrice: 5100,
+    stock: 3,
+    stockStatus: 'Disponible',
+    delivery: 'Entrega inmediata',
+    dimensions: '1.50 × 0.40 × 0.90 m',
+    featured: true,
+    projectTags: ['Renovar un espacio', 'Comedor']
+  },
+  {
+    id: 'comedor-180',
+    name: 'Comedor para 6 personas',
+    category: 'Comedor',
+    description: 'Más superficie para comidas largas y reuniones en casa.',
+    image: 'assets/catalog-order-04.png',
+    price: 13600,
+    previousPrice: 16000,
+    stock: 0,
+    stockStatus: 'Sobre pedido',
+    delivery: 'Consulta tiempos de entrega',
+    dimensions: '1.10 × 1.80 m',
+    featured: true,
+    projectTags: ['Equipar varias casas', 'Comedor']
+  },
+  {
+    id: 'sala-esquinera',
+    name: 'Sala tipo escuadra',
+    category: 'Sala',
+    description: 'Una esquina cómoda para aprovechar mejor tu espacio.',
+    image: 'assets/catalog-order-05.png',
+    price: 14500,
+    previousPrice: 18500,
+    stock: 2,
+    stockStatus: 'Disponible',
+    delivery: 'Entrega inmediata',
+    dimensions: '2.20 × 2.90 m',
+    projectTags: ['Nueva casa', 'Sala']
+  },
+  {
+    id: 'comedor-100',
+    name: 'Comedor compacto',
+    category: 'Comedor',
+    description: 'Proporción ligera para departamentos y espacios flexibles.',
+    image: 'assets/catalog-comedor-100.jpg',
+    price: 8900,
+    stock: 4,
+    stockStatus: 'Disponible',
+    delivery: 'Entrega inmediata',
+    dimensions: '0.90 × 1.00 m',
+    projectTags: ['Renovar un espacio', 'Comedor']
+  }
+];
