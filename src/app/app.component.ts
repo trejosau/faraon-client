@@ -12,6 +12,7 @@ import { CartService } from './services/cart.service';
 import { CheckoutService } from './services/checkout.service';
 import { ContactPayload, ContactService } from './services/contact.service';
 import { ApiRequestError } from './services/api-client';
+import { DeliveryMethod, ShippingAddress, ShippingService } from './services/shipping.service';
 
 type View = 'home' | 'catalog';
 type ProjectFilter = 'Todos' | 'Nueva casa' | 'Equipar varias casas' | 'Renovar un espacio';
@@ -67,6 +68,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly checkout = inject(CheckoutService);
   private readonly contact = inject(ContactService);
   private readonly auth = inject(AuthService);
+  private readonly shipping = inject(ShippingService);
   readonly products = CATALOG;
   readonly view = signal<View>('home');
   readonly cartOpen = signal(false);
@@ -78,11 +80,15 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly stripePaying = signal(false);
   readonly stripeMessage = signal('');
   readonly stripeCardMode = signal('Esperando datos de tarjeta');
+  readonly stripeCardFunding = signal<'unknown' | 'credit' | 'debit' | 'prepaid'>('unknown');
+  readonly creditMonths = signal<3 | 6 | null>(null);
   readonly search = signal('');
   readonly activeCategory = signal<'Todas' | ProductCategory>('Todas');
   readonly activeProject = signal<ProjectFilter>('Todos');
   readonly projectFilters: ProjectFilter[] = ['Todos', 'Nueva casa', 'Equipar varias casas', 'Renovar un espacio'];
   readonly paymentMode = signal<'cash' | 'credit'>('cash');
+  readonly deliveryMethod = signal<DeliveryMethod>('local');
+  readonly shippingAddress: ShippingAddress = { name: '', phone: '', line1: '', city: 'Torreón', state: 'Coahuila', postalCode: '' };
   readonly authOpen = signal(false);
   readonly authMode = signal<'login' | 'forgot'>('login');
   readonly authEmail = signal('');
@@ -190,6 +196,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   });
 
   readonly checkoutSubtotal = computed(() => this.cart.items().reduce((total, item) => total + this.unitPrice(item.product) * item.quantity, 0));
+  readonly shippingQuote = computed(() => this.shipping.quote(this.shippingAddress, this.deliveryMethod(), this.checkoutSubtotal(), this.cart.items()));
+  readonly checkoutTotal = computed(() => this.checkoutSubtotal() + this.shippingQuote().amountMxn);
+  readonly canPay = computed(() => !this.stripeLoading() && !this.stripePaying() && (this.paymentMode() === 'cash' || (this.creditMonths() !== null && this.stripeCardFunding() === 'credit')));
 
   ngOnInit(): void {
     this.syncView();
@@ -371,8 +380,34 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     else this.cart.update(productId, quantity - 1);
   }
 
+  setPaymentMode(mode: 'cash' | 'credit'): void {
+    this.paymentMode.set(mode);
+    this.creditMonths.set(null);
+    this.stripeCardFunding.set('unknown');
+    this.stripeCardMode.set(mode === 'credit' ? 'Selecciona 3 o 6 meses y captura tu tarjeta' : 'Pago contado · una sola exhibición');
+  }
+
+  setDeliveryMethod(method: DeliveryMethod): void {
+    this.deliveryMethod.set(method);
+    this.checkoutMessage.set('');
+  }
+
+  setCreditMonths(months: 3 | 6): void {
+    this.creditMonths.set(this.creditMonths() === months ? null : months);
+    this.checkoutMessage.set('');
+  }
+
   async checkoutCart(): Promise<void> {
     if (!this.cart.items().length) return;
+    const quote = this.shippingQuote();
+    if (!quote.ready) {
+      this.checkoutMessage.set(quote.detail);
+      return;
+    }
+    if (this.paymentMode() === 'credit' && this.creditMonths() === null) {
+      this.checkoutMessage.set('Elige 3 o 6 meses antes de continuar.');
+      return;
+    }
     this.checkoutMessage.set('');
     this.stripeMessage.set('');
     this.stripeOpen.set(true);
@@ -392,7 +427,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private async initializeStripePayment(): Promise<void> {
     try {
-      const result = await this.checkout.createPaymentIntent(this.cart.items(), this.paymentMode());
+      const quote = this.shippingQuote();
+      const result = await this.checkout.createPaymentIntent(this.cart.items(), this.paymentMode(), { method: this.deliveryMethod(), zone: quote.zone, amountMxn: quote.amountMxn, address: this.shippingAddress }, this.creditMonths());
       if (!result.clientSecret) throw new Error('Stripe no devolvió el client secret del pago.');
       this.stripeClientSecret = result.clientSecret;
       this.stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY);
@@ -419,12 +455,19 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       });
       this.stripePaymentElementInstance.on('carddetailschange', ({ loading, details }) => {
         if (loading) {
+          this.stripeCardFunding.set('unknown');
           this.stripeCardMode.set('Stripe está identificando tu tarjeta');
         } else if (details?.funding === 'credit') {
+          this.stripeCardFunding.set('credit');
           this.stripeCardMode.set('Tarjeta de crédito · Stripe mostrará meses si aplica');
         } else if (details?.funding === 'debit') {
-          this.stripeCardMode.set('Tarjeta de débito · pago en una sola exhibición');
+          this.stripeCardFunding.set('debit');
+          this.stripeCardMode.set(this.paymentMode() === 'credit' ? 'Tarjeta de débito · no puedes pagar a meses' : 'Tarjeta de débito · pago en una sola exhibición');
+        } else if (details?.funding === 'prepaid') {
+          this.stripeCardFunding.set('prepaid');
+          this.stripeCardMode.set('Tarjeta prepagada · no elegible para crédito');
         } else {
+          this.stripeCardFunding.set('unknown');
           this.stripeCardMode.set('Stripe · tarjeta de crédito o débito');
         }
       });
@@ -443,6 +486,14 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   async confirmStripePayment(event: Event): Promise<void> {
     event.preventDefault();
     if (!this.stripe || !this.stripeElements || this.stripePaying()) return;
+    if (this.paymentMode() === 'credit' && this.creditMonths() === null) {
+      this.stripeMessage.set('Elige 3 o 6 meses antes de pagar.');
+      return;
+    }
+    if (this.paymentMode() === 'credit' && this.stripeCardFunding() !== 'credit') {
+      this.stripeMessage.set('Para pagar a meses necesitas una tarjeta de crédito elegible. Las tarjetas de débito no están permitidas.');
+      return;
+    }
     this.stripePaying.set(true);
     this.stripeMessage.set('');
     try {
@@ -455,7 +506,20 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       });
       if (result.error) throw new Error(result.error.message || 'Stripe no pudo confirmar el pago.');
       if (result.paymentIntent?.status === 'succeeded' || result.paymentIntent?.status === 'processing') {
-        this.stripeMessage.set('Pago recibido. Estamos preparando tu pedido.');
+        try {
+          const quote = this.shippingQuote();
+          const order = await this.checkout.createOrder({
+            stripePaymentIntentId: result.paymentIntent.id,
+            paymentMode: this.paymentMode(),
+            installmentMonths: this.creditMonths(),
+            amountMxn: this.checkoutTotal(),
+            shipping: { method: this.deliveryMethod(), zone: quote.zone, amountMxn: quote.amountMxn, address: this.shippingAddress },
+            items: this.cart.items().map(({ product, quantity }) => ({ productId: product.id, quantity }))
+          });
+          this.stripeMessage.set(order.orderId ? `Pago recibido. Pedido F-${order.orderId} creado y en preparación.` : 'Pago recibido. Estamos preparando tu pedido.');
+        } catch {
+          this.stripeMessage.set('Pago recibido. Estamos preparando tu pedido.');
+        }
         this.cart.clear();
       } else {
         this.stripeMessage.set('Stripe recibió la solicitud y está verificando el pago.');
