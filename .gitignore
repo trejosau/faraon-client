@@ -3,4 +3,4 @@ dist/
 .angular/
 out-tsc/
 api/
-api/
+site-publish.tar.gz
